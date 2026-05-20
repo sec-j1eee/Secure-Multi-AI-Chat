@@ -65,7 +65,7 @@ function ChatPage() {
   const sendMessage = () => {
     if (inputValue.trim() && ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(inputValue);
-      setMessages(prev => [...prev, { content: `我: ${inputValue}`, type: 'sent' }]);
+      
       setInputValue('');
     }
   };
@@ -103,13 +103,22 @@ function ChatPage() {
       </Content>
       <Footer style={{ background: '#fff', padding: '12px 16px' }}>
         <Space.Compact style={{ width: '100%' }}>
+          <Button
+            type="default"
+            onClick={() => {
+              setInputValue('@DeepSeek '); // 自动填入
+              document.querySelector('input')?.focus(); // 聚焦输入框
+            }}
+  >
+            @AI
+          </Button>
           <Input
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onPressEnter={sendMessage}
             placeholder="输入消息，例如 @DeepSeek 你好"
             size="large"
-          />
+  />
           <Button type="primary" icon={<SendOutlined />} onClick={sendMessage} size="large">
             发送
           </Button>

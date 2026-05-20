@@ -8,6 +8,10 @@ from app.database import get_db
 from app import models, schemas
 from typing import List
 
+# 房间消息历史缓存
+room_histories: Dict[int, list] = {}
+MAX_HISTORY = 20
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 class ConnectionManager:
@@ -45,18 +49,29 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
                 continue
                 
             # 广播用户消息
-            await manager.broadcast(room_id, f"User {user_id}: {filtered}")
+            await manager.broadcast(room_id, f"{user_id}: {filtered}")
+            # 存入历史
+            if room_id not in room_histories:
+                room_histories[room_id] = []
+            room_histories[room_id].append({"role": "user", "content": f"{user_id}: {filtered}"})
+            # 保持历史长度
+            if len(room_histories[room_id]) > MAX_HISTORY:
+                room_histories[room_id].pop(0)
+
             
             # 检测是否 @AI
             if "@DeepSeek" in filtered:
-                # 提取问题（去掉 @DeepSeek 部分）
                 question = filtered.replace("@DeepSeek", "").strip()
                 if question:
                     try:
-                        ai_reply = await call_deepseek(question)
-                        # 安全过滤 AI 输出
+                        # 取出该房间的历史（包含刚刚这条）
+                        history = room_histories.get(room_id, [])[:]
+                        # 也可以再加一条当前问题
+                        ai_reply = await call_deepseek(history, system_prompt="你是群聊中的 AI 助手，请结合历史对话进行回答。")
                         _, safe_ai_reply = filter_ai_output(ai_reply)
                         await manager.broadcast(room_id, f"DeepSeek: {safe_ai_reply}")
+                        # AI 回复也存入历史
+                        room_histories[room_id].append({"role": "assistant", "content": f"DeepSeek: {safe_ai_reply}"})
                     except Exception as e:
                         await manager.broadcast(room_id, f"[系统] AI调用失败: {str(e)}")
                         
