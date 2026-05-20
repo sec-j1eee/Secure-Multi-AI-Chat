@@ -30,3 +30,12 @@ class MessageOut(BaseModel):
 
     class Config:
         from_attributes = True
+        
+
+class RoomOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -1,8 +1,12 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from typing import Dict
 import asyncio
 from app.services.ai_service import call_deepseek
 from app.utils.security import filter_user_input, filter_ai_output
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app import models, schemas
+from typing import List
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -10,13 +14,13 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, Dict[int, WebSocket]] = {}  # room_id -> {user_id: ws}
 
-    async def connect(self, websocket: WebSocket, room_id: int, user_id: int):
+    async def connect(self, websocket: WebSocket, room_id: int, user_id: str):
         await websocket.accept()
         if room_id not in self.active_connections:
             self.active_connections[room_id] = {}
         self.active_connections[room_id][user_id] = websocket
 
-    def disconnect(self, room_id: int, user_id: int):
+    def disconnect(self, room_id: int, user_id: str):
         if room_id in self.active_connections:
             self.active_connections[room_id].pop(user_id, None)
 
@@ -28,7 +32,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @router.websocket("/ws/{room_id}/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: int):
+async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
     await manager.connect(websocket, room_id, user_id)
     try:
         while True:
@@ -58,3 +62,22 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: int):
                         
     except WebSocketDisconnect:
         manager.disconnect(room_id, user_id)
+
+
+# --- 新增：房间管理 REST 接口 ---
+
+@router.get("/rooms", response_model=List[schemas.RoomOut])
+def list_rooms(db: Session = Depends(get_db)):
+    """获取所有活跃的聊天室"""
+    rooms = db.query(models.ChatRoom).all()
+    return rooms
+
+@router.post("/rooms", response_model=schemas.RoomOut, status_code=status.HTTP_201_CREATED)
+def create_room(room: schemas.RoomCreate, db: Session = Depends(get_db)):
+    """创建一个新的聊天室"""
+    # 暂时不校验用户，你可以后续加上 token 认证
+    db_room = models.ChatRoom(name=room.name)
+    db.add(db_room)
+    db.commit()
+    db.refresh(db_room)
+    return db_room
