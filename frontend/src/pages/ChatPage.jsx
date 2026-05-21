@@ -26,7 +26,8 @@ function ChatPage() {
     let isMounted = true;
 
     // 创建 WebSocket 连接
-    ws.current = new WebSocket(`ws://localhost:8000/api/chat/ws/${roomId}/${username}`);
+    const wsUrl = `${import.meta.env.VITE_API_BASE.replace('http', 'ws')}/api/chat/ws/${roomId}/${username}`;
+    ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => {
       if (isMounted) {
@@ -102,23 +103,32 @@ function ChatPage() {
         </Card>
       </Content>
       <Footer style={{ background: '#fff', padding: '12px 16px' }}>
-        <Space.Compact style={{ width: '100%' }}>
+  <Space.Compact style={{ width: '100%' }}>
+    <Button
+      type="default"
+      onClick={() => {
+        setInputValue('@DeepSeek ');
+        document.querySelector('input')?.focus();
+      }}
+    >
+            @DeepSeek
+          </Button>
           <Button
             type="default"
             onClick={() => {
-              setInputValue('@DeepSeek '); // 自动填入
-              document.querySelector('input')?.focus(); // 聚焦输入框
+              setInputValue('@GLM ');
+              document.querySelector('input')?.focus();
             }}
-  >
-            @AI
+    >
+            @GLM
           </Button>
           <Input
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onPressEnter={sendMessage}
-            placeholder="输入消息，例如 @DeepSeek 你好"
+            placeholder="输入消息，@DeepSeek 或 @GLM 提问"
             size="large"
-  />
+          />
           <Button type="primary" icon={<SendOutlined />} onClick={sendMessage} size="large">
             发送
           </Button>
