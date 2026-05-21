@@ -38,6 +38,7 @@ Secure-Multi-AI-Chat is an open-source platform that enables real-time, multi-us
 
 ## 🏗️ 技术架构
 
+```
 用户浏览器 (React)
 │
 ├─ HTTP (REST API) ──→ 用户注册/登录、房间管理
@@ -57,6 +58,7 @@ FastAPI 后端服务
 security.log ┌─────┴─────┐
 (安全审计) │ DeepSeek    GLM
 └───────────┘
+```
 
 
 **技术选型说明：**
@@ -152,3 +154,5 @@ Docker 一键部署
 👤 关于作者
 独立全栈开发项目，旨在探索大模型应用安全的前沿实践。欢迎 Star、Issue 和 PR！
 GitHub: @sec-j1eee
+
+```

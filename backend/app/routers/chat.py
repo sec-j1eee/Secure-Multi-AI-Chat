@@ -55,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
             # 存入历史
             if room_id not in room_histories:
                 room_histories[room_id] = []
-            room_histories[room_id].append({"role": "user", "content": f"{user_id}: {filtered}"})
+            room_histories[room_id].append({"role": "user", "content": filtered})
             if len(room_histories[room_id]) > MAX_HISTORY:
                 room_histories[room_id].pop(0)
 
@@ -71,7 +71,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
                         _, safe_ai_reply = filter_ai_output(ai_reply)
                         await manager.broadcast(room_id, f"{model_name}: {safe_ai_reply}")
                         # AI回复也存入历史
-                        room_histories[room_id].append({"role": "assistant", "content": f"{model_name}: {safe_ai_reply}"})
+                        room_histories[room_id].append({"role": "assistant", "content": safe_ai_reply})
                     except Exception as e:
                         await manager.broadcast(room_id, f"[系统] AI调用失败: {str(e)}")
 

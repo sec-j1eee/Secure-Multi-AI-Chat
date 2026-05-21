@@ -1,0 +1,33 @@
+.ai-message h1,
+.ai-message h2,
+.ai-message h3 {
+  font-size: 16px;
+  margin: 8px 0 4px;
+  color: #333;
+}
+.ai-message p {
+  margin: 4px 0;
+  line-height: 1.7;
+}
+.ai-message ul,
+.ai-message ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+.ai-message li {
+  margin-bottom: 2px;
+}
+.ai-message code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.ai-message hr {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid #e0d4ff;
+}
+.ai-message a {
+  color: #722ed1;  /* 紫色链接，和气泡协调 */
+}

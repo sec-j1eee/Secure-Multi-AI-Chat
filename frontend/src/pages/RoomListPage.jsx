@@ -44,9 +44,9 @@ function RoomListPage() {
     }
   };
 
-  const enterRoom = (roomId) => {
-    navigate(`/chat/${roomId}`);
-  };
+  const enterRoom = (room) => {
+  navigate(`/chat/${room.id}`, { state: { roomName: room.name } });
+};
 
   const logout = () => {
     localStorage.clear();
@@ -56,7 +56,7 @@ function RoomListPage() {
   return (
     <Layout style={{ height: '100vh' }}>
       <Header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#001529' }}>
-        <Text style={{ color: 'white', fontSize: '18px' }}>🤖 AI 群聊大厅</Text>
+        <Text style={{ color: 'white', fontSize: '18px' }}>MultiMind 群聊大厅</Text>
         <Button icon={<LogoutOutlined />} onClick={logout}>退出</Button>
       </Header>
       <Content style={{ padding: '24px' }}>
@@ -73,7 +73,7 @@ function RoomListPage() {
           dataSource={rooms}
           renderItem={item => (
             <List.Item
-              actions={[<Button type="link" onClick={() => enterRoom(item.id)}>进入</Button>]}
+              actions={[<Button type="link" onClick={() => enterRoom(item)}>进入</Button>]}
             >
               <List.Item.Meta
                 title={item.name}
