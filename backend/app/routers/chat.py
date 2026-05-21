@@ -2,13 +2,18 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from typing import Dict, List
 import asyncio
 import re
+import json
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
-from app.services.ai_service import call_ai
 from app.utils.security import filter_user_input, filter_ai_output
+from app.services.ai_service import call_ai, call_deepseek_stream, call_glm_stream
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+STREAM_MAP = {
+    "@DeepSeek": call_deepseek_stream,
+    "@GLM": call_glm_stream,
+}
 
 class ConnectionManager:
     def __init__(self):
@@ -43,14 +48,15 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
         while True:
             data = await websocket.receive_text()
 
-            # 安全过滤用户输入
+            # 安全过滤
             is_safe, filtered = filter_user_input(data)
             if not is_safe:
-                await websocket.send_text(f"[系统] {filtered}")
+                await websocket.send_text(json.dumps({"type": "system", "content": f"[系统] {filtered}"}))
                 continue
 
-            # 广播用户消息
-            await manager.broadcast(room_id, f"{user_id}: {filtered}")
+            # 广播用户消息（JSON格式）
+            msg_obj = {"type": "user", "sender": user_id, "content": filtered}
+            await manager.broadcast(room_id, json.dumps(msg_obj, ensure_ascii=False))
 
             # 存入历史
             if room_id not in room_histories:
@@ -59,21 +65,30 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: str):
             if len(room_histories[room_id]) > MAX_HISTORY:
                 room_histories[room_id].pop(0)
 
-            # 检测是否 @AI
+            # 检测 @AI
             model_match = re.search(r'@(\w+)', filtered)
             if model_match:
                 model_name = f"@{model_match.group(1)}"
                 question = filtered.replace(model_name, "").strip()
-                if question:
+                if question and model_name in STREAM_MAP:
                     try:
                         history = room_histories.get(room_id, [])[:]
-                        ai_reply = await call_ai(model_name, history)
-                        _, safe_ai_reply = filter_ai_output(ai_reply)
-                        await manager.broadcast(room_id, f"{model_name}: {safe_ai_reply}")
-                        # AI回复也存入历史
+                        stream_func = STREAM_MAP[model_name]
+                        full_reply = ""
+                        async for chunk in stream_func(history):
+                            full_reply += chunk
+                            # 每个 chunk 都广播给前端
+                            stream_obj = {"type": "ai_stream", "model": model_name, "chunk": chunk, "done": False}
+                            await manager.broadcast(room_id, json.dumps(stream_obj, ensure_ascii=False))
+                        # 流式结束，发送完成标记
+                        done_obj = {"type": "ai_stream", "model": model_name, "chunk": "", "done": True}
+                        await manager.broadcast(room_id, json.dumps(done_obj, ensure_ascii=False))
+                        # 审计并存入历史
+                        _, safe_ai_reply = filter_ai_output(full_reply)
                         room_histories[room_id].append({"role": "assistant", "content": safe_ai_reply})
                     except Exception as e:
-                        await manager.broadcast(room_id, f"[系统] AI调用失败: {str(e)}")
+                        err_obj = {"type": "system", "content": f"[系统] AI调用失败: {str(e)}"}
+                        await manager.broadcast(room_id, json.dumps(err_obj, ensure_ascii=False))
 
     except WebSocketDisconnect:
         manager.disconnect(room_id, user_id)

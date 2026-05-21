@@ -40,31 +40,53 @@ function ChatPage() {
     ws.current.onmessage = (event) => {
       if (!isMounted) return;
       const raw = event.data;
-      // 解析发送者和内容（格式：sender: content）
-      const splitIndex = raw.indexOf(': ');
-      let sender = '';
-      let content = '';
-      if (splitIndex !== -1) {
-        sender = raw.substring(0, splitIndex);
-        content = raw.substring(splitIndex + 2);
-      } else {
-        // 系统消息
-        sender = '系统';
-        content = raw;
+      let msgObj;
+      try {
+        msgObj = JSON.parse(raw);
+      } catch {
+        // 兼容老格式纯文本消息（如果还有的话）
+        msgObj = { type: 'user', sender: '系统', content: raw };
       }
 
-      // 判断消息类型
-      let type = 'other';
-      if (sender === username) type = 'me';
-      else if (AI_MODELS.includes(sender.replace(/^@/, ''))) type = 'ai';  // 去掉 @ 前缀再匹配
-      else if (sender === '系统' || raw.startsWith('[系统]')) type = 'system';
+      const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
-      setMessages(prev => [...prev, {
-        sender,
-        content,
-        type,
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-      }]);
+      if (msgObj.type === 'user' || msgObj.type === 'system') {
+        // 普通消息：直接追加
+        const sender = msgObj.sender || '系统';
+        let msgType = 'other';
+        if (sender === username) msgType = 'me';
+        else if (sender === '系统' || msgObj.content?.startsWith('[系统]')) msgType = 'system';
+        else if (AI_MODELS.includes(sender.replace(/^@/, ''))) msgType = 'ai';
+
+        setMessages(prev => [...prev, {
+          sender,
+          content: msgObj.content,
+          type: msgType,
+          time
+        }]);
+
+      } else if (msgObj.type === 'ai_stream') {
+        // 流式消息：逐 chunk 追加
+        setMessages(prev => {
+          const lastIdx = prev.length - 1;
+          // 如果最后一条消息是同一个模型的未完成的流式消息，追加 chunk
+          if (lastIdx >= 0 && prev[lastIdx].type === 'ai_stream' && prev[lastIdx].model === msgObj.model && !prev[lastIdx].done) {
+            const updated = [...prev];
+            updated[lastIdx] = { ...updated[lastIdx], content: updated[lastIdx].content + msgObj.chunk, done: msgObj.done };
+            return updated;
+          } else {
+            // 否则，创建一条新的流式消息
+            return [...prev, {
+              sender: msgObj.model,
+              content: msgObj.chunk,
+              type: 'ai_stream',
+              model: msgObj.model,
+              done: msgObj.done,
+              time
+            }];
+          }
+        });
+      }
     };
 
     ws.current.onclose = () => {
@@ -133,6 +155,14 @@ function ChatPage() {
           border: '1px solid #ffe58f'
         };
 
+      case 'ai_stream':
+        return {
+            ...base,
+            background: 'linear-gradient(135deg, #f9f0ff, #f2e6ff)',
+            color: '#333',
+            border: '1px solid #e0c8ff'
+        };
+
       case 'other':
       default:
         return {
@@ -183,9 +213,9 @@ function ChatPage() {
                   </div>
                 )}
                 {/* 消息气泡 */}
-                <div style={getBubbleStyle(msg.type)} className={msg.type === 'ai' ? 'ai-message' : ''}>
+                <div style={getBubbleStyle(msg.type)} className={msg.type === 'ai' || msg.type === 'ai_stream' ? 'ai-message' : ''}>
                   {msg.type === 'system' && <Text strong>{msg.content}</Text>}
-                  {msg.type === 'ai' ? (
+                  {msg.type === 'ai' || msg.type === 'ai_stream' ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   ) : (
                     <Text>{msg.content}</Text>

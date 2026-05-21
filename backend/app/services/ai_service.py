@@ -74,3 +74,61 @@ async def call_ai(model_name: str, history: list[dict], system_prompt: str = "�
         return await MODEL_MAP[model_name](history, system_prompt)
     else:
         return f"未知的AI模型：{model_name}"
+    
+async def call_deepseek_stream(history: list[dict], system_prompt: str = "你是一个乐于助人的AI助手。"):
+    """流式调用 DeepSeek，逐 token 返回内容"""
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    messages = [{"role": "system", "content": system_prompt}] + history
+    payload = {
+        "model": "deepseek-chat",
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 2048,
+        "stream": True  # 开启流式
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        async with client.stream("POST", f"{DEEPSEEK_BASE_URL}/v1/chat/completions", headers=headers, json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        return
+                    import json
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield content
+
+async def call_glm_stream(history: list[dict], system_prompt: str = "你是一个乐于助人的AI助手。"):
+    """流式调用 GLM-4，逐 token 返回内容"""
+    headers = {
+        "Authorization": f"Bearer {GLM_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    messages = [{"role": "system", "content": system_prompt}] + history
+    payload = {
+        "model": "glm-4",
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 2048,
+        "stream": True
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        async with client.stream("POST", f"{GLM_BASE_URL}/chat/completions", headers=headers, json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        return
+                    import json
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield content
